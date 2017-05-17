@@ -8,22 +8,34 @@
 #include "FileMap.h"
 #include "ImageHeaders.h"
 
-int main()
+int main(int argc, char* argv[])
 {
    STATUS status;
    LPSTR  pFileName;
+   LPSTR outputFileName;
    PFILE_MAP pFileMap;
    FILE* f;
+   errno_t err;
 
-   pFileName = "C:\\Users\\munte\\Desktop\\kernel32.dll";
-   
-   fopen_s(&f, "log.txt", "w");
-   //pFileName = "C:\\Users\\munte\\Desktop\\f2150_int86_32.dll";
-   //pFileName = "C:\\Users\\munte\\Desktop\\procexp.exe";
-   //pFileName = "D:\\Projects\\C\\PE-Dumper\\Debug\\PE-Dumper.exe";
-
+   err = 0;
    status = EXIT_SUCCESS_STATUS;
    pFileMap = NULL;
+   f = NULL;
+
+   if(argc != 3)
+   {
+      status = INVALID_ARGUMENTS;
+      goto CleanUp;
+   }
+   pFileName = argv[1];
+   outputFileName = argv[2];
+
+   err = fopen_s(&f, outputFileName, "w");
+   if(err != 0)
+   {
+      status = FILE_IO_ERROR;
+      goto CleanUp;
+   }
 
    pFileMap = (PFILE_MAP)malloc(sizeof(FILE_MAP));
    if(NULL == pFileMap)
@@ -35,6 +47,7 @@ int main()
    status = FileMapCreate(pFileMap, pFileName);
    if(!SUCCESS(status))
    {
+      fprintf(f, "INVALID FILE! GLE=%d\n", status);
       goto CleanUp;
    }
 
@@ -46,7 +59,12 @@ CleanUp:
    pFileMap = NULL;
 
    _CrtDumpMemoryLeaks();
-   fclose(f);
+   
+   if (NULL != f)
+   {
+      fclose(f);
+   }
+   
    printf("Exitcode status: 0x%08X\n", status);
    return status;
 }

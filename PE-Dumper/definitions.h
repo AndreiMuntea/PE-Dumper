@@ -26,4 +26,7 @@ typedef DWORD STATUS;
 #define INVALID_PE_FORMAT                 0x00300000
 #define INVALID_SECTION                   0x00400000
 
+#define FILE_IO_ERROR                     0x01000000
+#define INVALID_ARGUMENTS                 0x02000000
+
 #endif //DEFINITIONS_H

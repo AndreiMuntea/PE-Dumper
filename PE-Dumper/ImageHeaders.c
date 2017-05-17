@@ -369,12 +369,14 @@ CheckImageDOSHeader(
 
    if ((PBYTE)pImageHeaders->pImageDOSHeader + sizeof(IMAGE_DOS_HEADER) > pFileMap->pData + pFileMap->bcSize)
    {
+      fprintf(file, "ERROR INVALID DOS HEADER - OUT OF BOUNDS!!!");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
 
    if (MZ != pImageHeaders->pImageDOSHeader->e_magic)
    {
+      fprintf(file, "ERROR INVALID MZ FORMAT!!!");
       status = INVALID_MZ_FORMAT;
       goto CleanUp;
    }
@@ -399,12 +401,14 @@ CheckImageNTHeader(
    pImageHeaders->pImageNTHeaders = (PIMAGE_NT_HEADERS)((PBYTE)pImageHeaders->pImageDOSHeader + pImageHeaders->pImageDOSHeader->e_lfanew);
    if ((PBYTE)pImageHeaders->pImageNTHeaders + sizeof(IMAGE_NT_HEADERS) > pFileMap->pData + pFileMap->bcSize)
    {
+      fprintf(file, "ERROR INVALID NT HEADER - OUT OF BOUNDS!!!");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
 
    if (PE != pImageHeaders->pImageNTHeaders->Signature)
    {
+      fprintf(file, "ERROR INVALID PE FORMAT!!!");
       status = INVALID_PE_FORMAT;
       goto CleanUp;
    }
@@ -428,6 +432,7 @@ CheckImageFileHeader(
    pImageHeaders->pImageFileHeader = (PIMAGE_FILE_HEADER)(&pImageHeaders->pImageNTHeaders->FileHeader);
    if ((PBYTE)pImageHeaders->pImageFileHeader + sizeof(IMAGE_FILE_HEADER) > pFileMap->pData + pFileMap->bcSize)
    {
+      fprintf(file, "ERROR INVALID IMAGE FILE HEADER - OUT OF BOUNDS!!!");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
@@ -455,6 +460,7 @@ CheckImageOptionalHeader(
    pImageHeaders->pImageOptionalHeader = (PIMAGE_OPTIONAL_HEADER)(&pImageHeaders->pImageNTHeaders->OptionalHeader);
    if ((PBYTE)pImageHeaders->pImageOptionalHeader + sizeof(IMAGE_OPTIONAL_HEADER) > pFileMap->pData + pFileMap->bcSize)
    {
+      fprintf(file, "ERROR INVALID OPTIONAL HEADER - OUT OF BOUNDS!!!");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
@@ -494,6 +500,7 @@ CheckImageSectionsHeader(
    pImageHeaders->pImageSectionHeader = (PIMAGE_SECTION_HEADER)((PBYTE)pImageHeaders->pImageNTHeaders + offset);
    if ((PBYTE)pImageHeaders->pImageSectionHeader + sizeof(IMAGE_SECTION_HEADER) * noSections > pFileMap->pData + pFileMap->bcSize)
    {
+      fprintf(file, "ERROR INVALID SECTION HEADER - OUT OF BOUNDS!!!");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
@@ -515,9 +522,9 @@ CheckImageSectionsHeader(
       }
 
       fprintf(file,"\n\t  * Virtual Size: %d\n",section.Misc.VirtualSize);
-      fprintf(file,"\t  * Virtual Address: %08X\n", section.VirtualAddress);
+      fprintf(file,"\t  * Virtual Address: 0x%08X\n", section.VirtualAddress);
       fprintf(file,"\t  * Raw Size: %d\n", section.SizeOfRawData);
-      fprintf(file,"\t  * Raw Address: %08X\n", section.PointerToRawData);
+      fprintf(file,"\t  * Raw Address: 0x%08X\n", section.PointerToRawData);
    }
 
 
@@ -538,10 +545,14 @@ CheckImageDirectoryEntryExport(
    DWORD* addressOfNames;
    WORD* addressOfOrdinals;
    DWORD* addressOfFunctions;
+   DWORD* matches;
    LPSTR name;
+   DWORD counter;
    DWORD i;
 
+   counter = 0;
    name = NULL;
+   matches = NULL;
    addressOfFunctions = NULL;
    addressOfNames = NULL;
    addressOfOrdinals = NULL;
@@ -553,41 +564,60 @@ CheckImageDirectoryEntryExport(
    
    if(NULL == imageExportDirectory)
    {
-      status = INVALID_SECTION;
+      fprintf(file, "\t  * No exports\n");
       goto CleanUp;
    }
 
    if((PBYTE)imageExportDirectory > pFileMap->pData + pFileMap->bcSize)
    {
+      fprintf(file, "ERROR INVALID SECTION - OUT OF BOUNDS!!!");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
 
    addressOfNames = (DWORD*)OffsetFromRva(pFileMap, pImageHeaders, imageExportDirectory->AddressOfNames);
-   if(NULL == addressOfNames)
+   if(NULL != addressOfNames)
    {
-      status = INVALID_SECTION;
-      goto CleanUp;
-   }
+      // it must be valid because we have functions exported by name
+      addressOfOrdinals = (WORD*)OffsetFromRva(pFileMap, pImageHeaders, imageExportDirectory->AddressOfNameOrdinals);
+      if (NULL == addressOfOrdinals)
+      {
+         fprintf(file, "ERROR INVALID SECTION FOR ADDRESS OF NAME ORDINALS!!!");
+         status = INVALID_SECTION;
+         goto CleanUp;
+      }
 
+   }
    addressOfFunctions = (DWORD*)OffsetFromRva(pFileMap, pImageHeaders, imageExportDirectory->AddressOfFunctions);
    if (NULL == addressOfFunctions)
    {
+      fprintf(file, "ERROR INVALID SECTION FOR ADDRESS OF FUNCTIONS!!!");
       status = INVALID_SECTION;
       goto CleanUp;
    }
 
-   addressOfOrdinals = (WORD*)OffsetFromRva(pFileMap, pImageHeaders, imageExportDirectory->AddressOfNameOrdinals);
-   if (NULL == addressOfOrdinals)
+   //an array to flag the visited functions.
+   //we will iterate the ones exported by name and after that, the ones exported by ordinals
+   matches = (DWORD*)malloc(imageExportDirectory->NumberOfFunctions * sizeof(DWORD));
+   if(NULL == matches)
+   {
+      status = BAD_ALLOCATION;
+      goto CleanUp;
+   }
+   ZeroMemory(matches, imageExportDirectory->NumberOfFunctions * sizeof(DWORD));
+
+   if(imageExportDirectory->NumberOfNames > 0 && addressOfNames == NULL)
    {
       status = INVALID_SECTION;
       goto CleanUp;
    }
 
-   // we need to display the name of the functions, so we take only those exported by name
+   // iterate functions exported by name
+   fprintf(file, "\t  * Functions exported by name: \n");
    for(i = 0; i < imageExportDirectory->NumberOfNames; ++i)
    {
-      fprintf(file,"\t# %d:\n", i);
+      fprintf(file,"\t# %d:\n", counter);
+      name = NULL;
 
       name = (LPSTR)OffsetFromRva(pFileMap, pImageHeaders, addressOfNames[i]);
       if (NULL == name)
@@ -596,15 +626,32 @@ CheckImageDirectoryEntryExport(
          goto CleanUp;
       }
 
-      fprintf(file,"\t  * Name: %s\n", name);
-      fprintf(file,"\t  * Name RVA: 0X%08X\n", addressOfNames[i]);
-      fprintf(file,"\t  * Name Ordinal: %d\n", addressOfOrdinals[i]);
-      fprintf(file,"\t  * Address: 0x%08X\n", addressOfFunctions[addressOfOrdinals[i]]);
+      fprintf(file,"\t\t- Name: %s\n", name);
+      fprintf(file,"\t\t- Name RVA: 0X%08X\n", addressOfNames[i]);
+      fprintf(file,"\t\t- Name Ordinal: %d\n", addressOfOrdinals[i]);
+      fprintf(file,"\t\t- Address: 0x%08X\n", addressOfFunctions[addressOfOrdinals[i]]);
+      matches[addressOfOrdinals[i]] = 1; //flag
+      ++counter;
+   }
+
+   // iterate functions exported by ordinal
+   fprintf(file, "\t  * Functions exported by ordinal: \n");
+   for(i = 0; i < imageExportDirectory->NumberOfFunctions; ++i)
+   {
+      //function was exported by name
+      if(matches[i] != 0)
+      {
+         continue;
+      }
+      fprintf(file, "\t# %d:\n", counter);
+      fprintf(file, "\t\t- Address: 0x%08X\n", addressOfFunctions[i]);
+      ++counter;
    }
 
 
    
 CleanUp:
+   free(matches);
    return status;
 }
 
@@ -637,19 +684,24 @@ CheckImageDirectoryEntryImport(
    pImageImportDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)OffsetFromRva(pFileMap, pImageHeaders, imageImportDataDirectory.VirtualAddress);
    if(NULL == pImageImportDescriptor)
    {
-      status = INVALID_SECTION;
+      fprintf(file, "\t  * No imports\n");
       goto CleanUp;
    }
 
-   for(i = 0; pImageImportDescriptor[i].Name != 0 ||
-              pImageImportDescriptor[i].FirstThunk != 0 ||
-              pImageImportDescriptor[i].ForwarderChain != 0 ||
-              pImageImportDescriptor[i].TimeDateStamp != 0; 
-      ++i)
+   if ((PBYTE)pImageImportDescriptor > pFileMap->pData + pFileMap->bcSize)
+   {
+      fprintf(file, "ERROR INVALID SECTION - OUT OF BOUNDS!!!");
+      status = OUT_OF_BOUNDS;
+      goto CleanUp;
+   }
+
+   for(i = 0; pImageImportDescriptor[i].FirstThunk != 0; ++i)
    {
       moduleName = (LPSTR)OffsetFromRva(pFileMap, pImageHeaders, pImageImportDescriptor[i].Name);
       if(NULL == moduleName)
       {
+
+         fprintf(file, "ERROR INVALID SECTION FOR MODULE NAME!!!");
          status = INVALID_SECTION;
          goto CleanUp;
       }
@@ -658,6 +710,7 @@ CheckImageDirectoryEntryImport(
       pImageThunkData = (PIMAGE_THUNK_DATA)OffsetFromRva(pFileMap, pImageHeaders, pImageImportDescriptor[i].FirstThunk);
       if(NULL == pImageThunkData)
       {
+         fprintf(file, "ERROR INVALID SECTION FOR IMAGE THUNK DATA!!!");
          status = INVALID_SECTION;
          goto CleanUp;
       }
@@ -667,10 +720,12 @@ CheckImageDirectoryEntryImport(
          pImageImportByName = (PIMAGE_IMPORT_BY_NAME)OffsetFromRva(pFileMap, pImageHeaders, pImageThunkData[j].u1.AddressOfData);
          if(NULL == pImageImportByName)
          {
-            status = INVALID_SECTION;
-            goto CleanUp;
+            fprintf(file, "\t  # %d : (NULL) Function imported by ordinal\n", j);
          }
-         fprintf(file, "\t  #%d : %s\n", j, pImageImportByName->Name);
+         else 
+         {
+            fprintf(file, "\t  # %d : %s\n", j, pImageImportByName->Name);
+         }
       }
 
    }

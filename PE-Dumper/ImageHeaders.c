@@ -14,16 +14,24 @@ PrintMachine(
    {
    case 0x014c:
       {
-         fprintf(file,"(x86)\n");
+         fprintf(file, "(x86)\n");
          break;
       }
    case 0x0200:
       {
-         fprintf(file,"Intel Itanium)\n");
+         fprintf(file, "(Intel Itanium)\n");
+         break;
+      }
+   case 0x8664:
+      {
+         fprintf(file, "(x64)\n");
          break;
       }
    default:
-      fprintf(file,"x64");
+      {
+      fprintf(file, "INVALID MACHINE)\n");
+      RaiseException(INVALID_MACHINE, 0, 0, NULL);
+      }
    }
 }
 
@@ -34,102 +42,65 @@ PrintCharacteristics(
 )
 {
    fprintf(file,"\t>Characteristics: 0x%04X:\n", characteristics);
-   switch (characteristics % 16)
+   if(characteristics & 0x0001)
    {
-   case 0x0001:
-      {
-         fprintf(file,"\t  * FILE_RELOCS_STRIPPED\n");
-         break;
-      }
-   case 0x0002:
-      {
-         fprintf(file,"\t  * FILE_EXECUTABLE_IMAGE\n");
-         break;
-      }
-   case 0x0004:
-      {
-         fprintf(file,"\t  * FILE_LOCAL_SYMS_STRIPPED\n");
-         break;
-      }
-   default:
-      {
-      }
+      fprintf(file, "\t  * IMAGE_FILE_RELOCS_STRIPPED\n");
    }
-
-   switch ((characteristics % 256) / 16)
+   if(characteristics & 0x0002)
    {
-   case 0x0001:
-      {
-         fprintf(file,"\t  * FILE_AGGRESIVE_WS_TRIM\n");
-         break;
-      }
-   case 0x0002:
-      {
-         fprintf(file,"\t  * FILE_LARGE_ADDRESS_AWARE\n");
-         break;
-      }
-   case 0x0008:
-      {
-         fprintf(file,"\t  * FILE_BYTES_REVERSED_LO\n");
-         break;
-      }
-   default:
-      {
-      }
+      fprintf(file, "\t  * IMAGE_FILE_EXECUTABLE_IMAGE\n");
    }
-
-   switch ((characteristics % 4096) / 256)
+   if (characteristics & 0x0004)
    {
-   case 0x0001:
-      {
-         fprintf(file,"\t  * FILE_32BIT_MACHINE\n");
-         break;
-      }
-   case 0x0002:
-      {
-         fprintf(file,"\t  * FILE_DEBUG_STRIPPED\n");
-         break;
-      }
-   case 0x0004:
-      {
-         fprintf(file,"\t  * FILE_REMOVABLE_RUN_FROM_SWAP\n");
-         break;
-      }
-   case 0x0008:
-      {
-         fprintf(file,"\t  * FILE_NET_RUN_FROM_SWAP\n");
-         break;
-      }
-   default:
-      {
-      }
+      fprintf(file, "\t  * IMAGE_FILE_LINE_NUMS_STRIPPED\n");
    }
-
-   switch ((characteristics % 65536) / 4096)
+   if (characteristics & 0x0008)
    {
-   case 0x0001:
-      {
-         fprintf(file,"\t  * FILE_SYSTEM\n");
-         break;
-      }
-   case 0x0002:
-      {
-         fprintf(file,"\t  * FILE_DLL\n");
-         break;
-      }
-   case 0x0004:
-      {
-         fprintf(file,"\t  * FILE_UP_SYSTEM_ONLY\n");
-         break;
-      }
-   case 0x0008:
-      {
-         fprintf(file,"\t  * FILE_BYTES_REVERSED_HI\n");
-         break;
-      }
-   default:
-      {
-      }
+      fprintf(file, "\t  * IMAGE_FILE_LOCAL_SYMS_STRIPPED\n");
+   }
+   if (characteristics & 0x0010)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_AGGRESIVE_WS_TRIM\n");
+   }
+   if (characteristics & 0x0020)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_LARGE_ADDRESS_AWARE\n");
+   }
+   if (characteristics & 0x0080)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_BYTES_REVERSED_LO\n");
+   }
+   if (characteristics & 0x0100)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_32BIT_MACHINE\n");
+   }   
+   if (characteristics & 0x0200)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_DEBUG_STRIPPED\n");
+   }
+   if (characteristics & 0x0400)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_REMOVABLE_RUN_FROM_SWAP\n");
+   }
+   if (characteristics & 0x0800)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_NET_RUN_FROM_SWAP\n");
+   }
+   if (characteristics & 0x1000)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_SYSTEM\n");
+   }
+   if (characteristics & 0x2000)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_DLL\n");
+   }
+   if (characteristics & 0x4000)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_UP_SYSTEM_ONLY\n");
+   }
+   if (characteristics & 0x8000)
+   {
+      fprintf(file, "\t  * IMAGE_FILE_BYTES_REVERSED_HI\n");
    }
 }
 
@@ -209,6 +180,8 @@ PrintSubsystem(
       }
    default:
       {
+         fprintf(file, "INVALID SUBSYSTEM\n");
+         RaiseException(INVALID_SUBSYSTEM, 0, 0, NULL);
       }
    }
 }
@@ -301,52 +274,133 @@ AnalyzeImageHeaders(
       goto CleanUp;
    }
 
-   status = CheckImageDOSHeader(&imageHeaders, pFileMap, file);
-   if (!SUCCESS(status))
+   __try
    {
+      fprintf(file, "DOS Header:\n");
+      status = CheckImageDOSHeader(&imageHeaders, pFileMap, file);
+      if (!SUCCESS(status))
+      {
+         status = INVALID_DOS_HEADER;
+         fprintf(file, "INVALID DOS HEADER!\n");
+         goto CleanUp;
+      }
+   }
+   __except(EXCEPTION_EXECUTE_FAULT)
+   {
+      status = INVALID_DOS_HEADER;
+      fprintf(file, "INVALID DOS HEADER!\n");
       goto CleanUp;
    }
+   fprintf(file, "--------------------------------------------------------------------------------\n\n");
 
-   status = CheckImageNTHeader(&imageHeaders, pFileMap, file);
-   if (!SUCCESS(status))
+   __try
    {
+      fprintf(file, "NT Header:\n");
+      status = CheckImageNTHeader(&imageHeaders, pFileMap, file);
+      if (!SUCCESS(status))
+      {
+         status = INVALID_NT_HEADER;
+         fprintf(file, "INVALID NT HEADER!\n");
+         goto CleanUp;
+      }
+   }
+   __except (EXCEPTION_EXECUTE_FAULT)
+   {
+      status = INVALID_NT_HEADER;
+      fprintf(file, "INVALID NT HEADER!\n");
       goto CleanUp;
    }
+   fprintf(file, "--------------------------------------------------------------------------------\n\n");
 
-   fprintf(file,"File Header:\n");
-   status = CheckImageFileHeader(&imageHeaders, pFileMap, file);
-   if (!SUCCESS(status))
+   __try {
+      fprintf(file, "File Header:\n");
+      status = CheckImageFileHeader(&imageHeaders, pFileMap, file);
+      if (!SUCCESS(status))
+      {
+         status = INVALID_FILE_HEADER;
+         fprintf(file, "INVALID FILE HEADER!\n");
+         goto CleanUp;
+      }
+   }
+   __except (EXCEPTION_EXECUTE_FAULT)
    {
+      status = INVALID_FILE_HEADER;
+      fprintf(file, "INVALID FILE HEADER!\n");
       goto CleanUp;
    }
+   fprintf(file, "--------------------------------------------------------------------------------\n\n");
 
-   fprintf(file,"Optional Header:\n");
-   status = CheckImageOptionalHeader(&imageHeaders, pFileMap, file);
-   if (!SUCCESS(status))
+   __try {
+      fprintf(file, "Optional Header:\n");
+      status = CheckImageOptionalHeader(&imageHeaders, pFileMap, file);
+      if (!SUCCESS(status))
+      {
+         status = INVALID_OPTIONAL_HEADER;
+         fprintf(file, "INVALID FILE HEADER!\n");
+         goto CleanUp;
+      }
+   }
+   __except (EXCEPTION_EXECUTE_FAULT)
    {
+      status = INVALID_OPTIONAL_HEADER;
+      fprintf(file, "INVALID FILE HEADER!\n");
       goto CleanUp;
    }
+   fprintf(file, "--------------------------------------------------------------------------------\n\n");
 
-   fprintf(file,"Section Headers:\n");
-   status = CheckImageSectionsHeader(&imageHeaders, pFileMap, file);
-   if (!SUCCESS(status))
+   __try {
+      fprintf(file, "Section Headers:\n");
+      status = CheckImageSectionsHeader(&imageHeaders, pFileMap, file);
+      if (!SUCCESS(status))
+      {
+         status = INVALID_SECTIONS_HEADER;
+         fprintf(file, "INVALID SECTION HEADER!\n");
+         goto CleanUp;
+      }
+   }
+   __except (EXCEPTION_EXECUTE_FAULT)
    {
+      status = INVALID_SECTIONS_HEADER;
+      fprintf(file, "INVALID SECTION HEADER!\n");
       goto CleanUp;
    }
+   fprintf(file, "--------------------------------------------------------------------------------\n\n");
 
-   fprintf(file,"Export directory:\n");
-   status = CheckImageDirectoryEntryExport(&imageHeaders, pFileMap, file);
-   if (!SUCCESS(status))
+   __try {
+      fprintf(file, "Export directory:\n");
+      status = CheckImageDirectoryEntryExport(&imageHeaders, pFileMap, file);
+      if (!SUCCESS(status))
+      {
+         status = INVALID_EXPORT_DIRECTORY;
+         fprintf(file, "INVALID EXPORT DIRECTORY!\n");
+         goto CleanUp;
+      }
+   }
+   __except (EXCEPTION_EXECUTE_FAULT)
    {
+      status = INVALID_EXPORT_DIRECTORY;
+      fprintf(file, "INVALID EXPORT DIRECTORY!\n");
       goto CleanUp;
    }
+   fprintf(file, "--------------------------------------------------------------------------------\n\n");
 
-   fprintf(file, "Import directory:\n");
-   status = CheckImageDirectoryEntryImport(&imageHeaders, pFileMap, file);
-   if (!SUCCESS(status))
+   __try {
+      fprintf(file, "Import directory:\n");
+      status = CheckImageDirectoryEntryImport(&imageHeaders, pFileMap, file);
+      if (!SUCCESS(status))
+      {
+         status = INVALID_IMPORT_DIRECTORY;
+         fprintf(file, "INVALID IMPORT DIRECTORY!\n");
+         goto CleanUp;
+      }
+   }
+   __except (EXCEPTION_EXECUTE_FAULT)
    {
+      status = INVALID_IMPORT_DIRECTORY;
+      fprintf(file, "INVALID IMPORT DIRECTORY!\n");
       goto CleanUp;
    }
+   fprintf(file, "--------------------------------------------------------------------------------\n\n");
 
 CleanUp:
    return status;
@@ -369,14 +423,14 @@ CheckImageDOSHeader(
 
    if ((PBYTE)pImageHeaders->pImageDOSHeader + sizeof(IMAGE_DOS_HEADER) > pFileMap->pData + pFileMap->bcSize)
    {
-      fprintf(file, "ERROR INVALID DOS HEADER - OUT OF BOUNDS!!!");
+      fprintf(file, "ERROR INVALID DOS HEADER - OUT OF BOUNDS!!!\n");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
 
    if (MZ != pImageHeaders->pImageDOSHeader->e_magic)
    {
-      fprintf(file, "ERROR INVALID MZ FORMAT!!!");
+      fprintf(file, "ERROR INVALID MZ FORMAT!!!\n");
       status = INVALID_MZ_FORMAT;
       goto CleanUp;
    }
@@ -401,14 +455,14 @@ CheckImageNTHeader(
    pImageHeaders->pImageNTHeaders = (PIMAGE_NT_HEADERS)((PBYTE)pImageHeaders->pImageDOSHeader + pImageHeaders->pImageDOSHeader->e_lfanew);
    if ((PBYTE)pImageHeaders->pImageNTHeaders + sizeof(IMAGE_NT_HEADERS) > pFileMap->pData + pFileMap->bcSize)
    {
-      fprintf(file, "ERROR INVALID NT HEADER - OUT OF BOUNDS!!!");
+      fprintf(file, "ERROR INVALID NT HEADER - OUT OF BOUNDS!!!\n");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
 
    if (PE != pImageHeaders->pImageNTHeaders->Signature)
    {
-      fprintf(file, "ERROR INVALID PE FORMAT!!!");
+      fprintf(file, "ERROR INVALID PE FORMAT!!!\n");
       status = INVALID_PE_FORMAT;
       goto CleanUp;
    }
@@ -432,7 +486,7 @@ CheckImageFileHeader(
    pImageHeaders->pImageFileHeader = (PIMAGE_FILE_HEADER)(&pImageHeaders->pImageNTHeaders->FileHeader);
    if ((PBYTE)pImageHeaders->pImageFileHeader + sizeof(IMAGE_FILE_HEADER) > pFileMap->pData + pFileMap->bcSize)
    {
-      fprintf(file, "ERROR INVALID IMAGE FILE HEADER - OUT OF BOUNDS!!!");
+      fprintf(file, "ERROR INVALID IMAGE FILE HEADER - OUT OF BOUNDS!!!\n");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
@@ -460,7 +514,7 @@ CheckImageOptionalHeader(
    pImageHeaders->pImageOptionalHeader = (PIMAGE_OPTIONAL_HEADER)(&pImageHeaders->pImageNTHeaders->OptionalHeader);
    if ((PBYTE)pImageHeaders->pImageOptionalHeader + sizeof(IMAGE_OPTIONAL_HEADER) > pFileMap->pData + pFileMap->bcSize)
    {
-      fprintf(file, "ERROR INVALID OPTIONAL HEADER - OUT OF BOUNDS!!!");
+      fprintf(file, "ERROR INVALID OPTIONAL HEADER - OUT OF BOUNDS!!!\n");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
@@ -500,7 +554,7 @@ CheckImageSectionsHeader(
    pImageHeaders->pImageSectionHeader = (PIMAGE_SECTION_HEADER)((PBYTE)pImageHeaders->pImageNTHeaders + offset);
    if ((PBYTE)pImageHeaders->pImageSectionHeader + sizeof(IMAGE_SECTION_HEADER) * noSections > pFileMap->pData + pFileMap->bcSize)
    {
-      fprintf(file, "ERROR INVALID SECTION HEADER - OUT OF BOUNDS!!!");
+      fprintf(file, "ERROR INVALID SECTION HEADER - OUT OF BOUNDS!!!\n");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
@@ -570,7 +624,7 @@ CheckImageDirectoryEntryExport(
 
    if((PBYTE)imageExportDirectory > pFileMap->pData + pFileMap->bcSize)
    {
-      fprintf(file, "ERROR INVALID SECTION - OUT OF BOUNDS!!!");
+      fprintf(file, "ERROR INVALID SECTION - OUT OF BOUNDS!!!\n");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
@@ -582,7 +636,7 @@ CheckImageDirectoryEntryExport(
       addressOfOrdinals = (WORD*)OffsetFromRva(pFileMap, pImageHeaders, imageExportDirectory->AddressOfNameOrdinals);
       if (NULL == addressOfOrdinals)
       {
-         fprintf(file, "ERROR INVALID SECTION FOR ADDRESS OF NAME ORDINALS!!!");
+         fprintf(file, "ERROR INVALID SECTION FOR ADDRESS OF NAME ORDINALS!!!\n");
          status = INVALID_SECTION;
          goto CleanUp;
       }
@@ -591,7 +645,7 @@ CheckImageDirectoryEntryExport(
    addressOfFunctions = (DWORD*)OffsetFromRva(pFileMap, pImageHeaders, imageExportDirectory->AddressOfFunctions);
    if (NULL == addressOfFunctions)
    {
-      fprintf(file, "ERROR INVALID SECTION FOR ADDRESS OF FUNCTIONS!!!");
+      fprintf(file, "ERROR INVALID SECTION FOR ADDRESS OF FUNCTIONS!!!\n");
       status = INVALID_SECTION;
       goto CleanUp;
    }
@@ -639,11 +693,12 @@ CheckImageDirectoryEntryExport(
    for(i = 0; i < imageExportDirectory->NumberOfFunctions; ++i)
    {
       //function was exported by name
-      if(matches[i] != 0)
+      if(matches[i] != 0 || addressOfFunctions[i] == 0)
       {
          continue;
       }
       fprintf(file, "\t# %d:\n", counter);
+      fprintf(file, "\t\t- Ordinal: %d\n", i + imageExportDirectory->Base);
       fprintf(file, "\t\t- Address: 0x%08X\n", addressOfFunctions[i]);
       ++counter;
    }
@@ -690,27 +745,35 @@ CheckImageDirectoryEntryImport(
 
    if ((PBYTE)pImageImportDescriptor > pFileMap->pData + pFileMap->bcSize)
    {
-      fprintf(file, "ERROR INVALID SECTION - OUT OF BOUNDS!!!");
+      fprintf(file, "ERROR INVALID SECTION - OUT OF BOUNDS!!!\n");
       status = OUT_OF_BOUNDS;
       goto CleanUp;
    }
 
-   for(i = 0; pImageImportDescriptor[i].FirstThunk != 0; ++i)
+   for(i = 0; pImageImportDescriptor[i].FirstThunk != 0 ||
+              pImageImportDescriptor[i].OriginalFirstThunk != 0; ++i)
    {
       moduleName = (LPSTR)OffsetFromRva(pFileMap, pImageHeaders, pImageImportDescriptor[i].Name);
       if(NULL == moduleName)
       {
 
-         fprintf(file, "ERROR INVALID SECTION FOR MODULE NAME!!!");
+         fprintf(file, "ERROR INVALID SECTION FOR MODULE NAME!!!\n");
          status = INVALID_SECTION;
          goto CleanUp;
       }
       fprintf(file, "\t>Module %s:\n", moduleName);
 
-      pImageThunkData = (PIMAGE_THUNK_DATA)OffsetFromRva(pFileMap, pImageHeaders, pImageImportDescriptor[i].FirstThunk);
+      if (pImageImportDescriptor[i].OriginalFirstThunk != 0)
+      {
+         pImageThunkData = (PIMAGE_THUNK_DATA)OffsetFromRva(pFileMap, pImageHeaders, pImageImportDescriptor[i].OriginalFirstThunk);
+      }
+      else
+      {
+         pImageThunkData = (PIMAGE_THUNK_DATA)OffsetFromRva(pFileMap, pImageHeaders, pImageImportDescriptor[i].FirstThunk);
+      }
       if(NULL == pImageThunkData)
       {
-         fprintf(file, "ERROR INVALID SECTION FOR IMAGE THUNK DATA!!!");
+         fprintf(file, "ERROR INVALID SECTION FOR IMAGE THUNK DATA!!!\n");
          status = INVALID_SECTION;
          goto CleanUp;
       }
@@ -718,11 +781,11 @@ CheckImageDirectoryEntryImport(
       for(j = 0; pImageThunkData[j].u1.AddressOfData != 0; ++j)
       {
          pImageImportByName = (PIMAGE_IMPORT_BY_NAME)OffsetFromRva(pFileMap, pImageHeaders, pImageThunkData[j].u1.AddressOfData);
-         if(NULL == pImageImportByName)
+         if (NULL == pImageImportByName)
          {
             fprintf(file, "\t  # %d : (NULL) Function imported by ordinal\n", j);
          }
-         else 
+         else
          {
             fprintf(file, "\t  # %d : %s\n", j, pImageImportByName->Name);
          }

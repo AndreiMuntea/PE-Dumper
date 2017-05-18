@@ -1,47 +1,27 @@
+DOS Header:
+--------------------------------------------------------------------------------
+
+NT Header:
+--------------------------------------------------------------------------------
+
 File Header:
 	>Machine: 0x014C (x86)
-	>Number of sections: 5
-	>Characteristics: 0x010F:
-	  * FILE_32BIT_MACHINE
+	>Number of sections: 3843
+	>Characteristics: 0x0103:
+	  * IMAGE_FILE_RELOCS_STRIPPED
+	  * IMAGE_FILE_EXECUTABLE_IMAGE
+	  * IMAGE_FILE_32BIT_MACHINE
+--------------------------------------------------------------------------------
+
 Optional Header:
-	>Address of Entry Point: 0x00001000
+	>Address of Entry Point: 0x0015AD3F
 	>Image Base: 0x00400000
 	>Section Alignment: 0x00001000
 	>File Alignment: 0x00000200
 	>Subsystem: 2 (IMAGE_SUBSYSTEM_WINDOWS_GUI)
 	>NumberOfRvaAndSizes: 16
+--------------------------------------------------------------------------------
+
 Section Headers:
-	>Section 0 :
-	  * Name: 
-	  * Virtual Size: 69632
-	  * Virtual Address: 0x00001000
-	  * Raw Size: 34816
-	  * Raw Address: 0x00000400
-	>Section 1 :
-	  * Name: 
-	  * Virtual Size: 4096
-	  * Virtual Address: 0x00012000
-	  * Raw Size: 3584
-	  * Raw Address: 0x00008C00
-	>Section 2 :
-	  * Name: 
-	  * Virtual Size: 32768
-	  * Virtual Address: 0x00013000
-	  * Raw Size: 10240
-	  * Raw Address: 0x00009A00
-	>Section 3 :
-	  * Name: .idp
-	  * Virtual Size: 335872
-	  * Virtual Address: 0x0001B000
-	  * Raw Size: 332288
-	  * Raw Address: 0x0000C200
-	>Section 4 :
-	  * Name: .adata
-	  * Virtual Size: 28672
-	  * Virtual Address: 0x0006D000
-	  * Raw Size: 0
-	  * Raw Address: 0x0005D400
-Export directory:
-	  * No exports
-Import directory:
-ERROR INVALID SECTION - OUT OF BOUNDS!!!
+ERROR INVALID SECTION HEADER - OUT OF BOUNDS!!!
+INVALID SECTION HEADER!
